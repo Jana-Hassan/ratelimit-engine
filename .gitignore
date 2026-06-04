@@ -3,3 +3,5 @@
 /bin
 __debug_bin
 .history
+
+.history/
