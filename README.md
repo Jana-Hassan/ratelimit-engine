@@ -1,3 +1,3 @@
 ## Architecture
 
-![System Architecture](assets/architecture.png)
+![System Architecture](assets\system_architecture.png)
