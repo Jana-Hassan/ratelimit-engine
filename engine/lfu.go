@@ -102,7 +102,7 @@ func (shard *shard) incrementFreq(node *Node) {
 func (engine *Engine) getShard(key string) *shard {
 	hash := fnv.New32a()
 	hash.Write([]byte(key))
-	shardIndex := int(hash.Sum32()) % 256
+	shardIndex := hash.Sum32() % 256
 	return &engine.shards[shardIndex]
 }
 
@@ -120,11 +120,7 @@ func (s *shard) evict() {
 	s.size--
 }
 
-func (engine *Engine) Set(key string, value interface{}) {
-	s := engine.getShard(key)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+func (s *shard) set(key string, value interface{}) {
 	if node, exists := s.keyMap[key]; exists {
 		node.value = value
 		s.incrementFreq(node)
@@ -150,6 +146,13 @@ func (engine *Engine) Set(key string, value interface{}) {
 	s.size++
 }
 
+func (engine *Engine) Set(key string, value interface{}) {
+	s := engine.getShard(key)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.set(key, value)
+}
+
 func (engine *Engine) Delete(key string) {
 	s := engine.getShard(key)
 	s.mu.Lock()
@@ -169,15 +172,31 @@ func (engine *Engine) Delete(key string) {
 	s.size--
 }
 
-func (engine *Engine) Get(key string) (interface{}, bool) {
-	shard := engine.getShard(key)
-	shard.mu.Lock()
-	defer shard.mu.Unlock()
-
-	if node, exists := shard.keyMap[key]; exists {
-		shard.incrementFreq(node)
+func (s *shard) get(key string) (interface{}, bool) {
+	if node, exists := s.keyMap[key]; exists {
+		s.incrementFreq(node)
 		node.lastAccessed = time.Now()
 		return node.value, true
 	}
 	return nil, false
+}
+
+func (engine *Engine) Get(key string) (interface{}, bool) {
+	s := engine.getShard(key)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.get(key)
+}
+
+func (engine *Engine) Update(key string, fn func(value interface{}, found bool) interface{}) {
+	s := engine.getShard(key)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var current interface{}
+	node, found := s.keyMap[key]
+	if found {
+		current = node.value
+	}
+	s.set(key, fn(current, found))
 }
