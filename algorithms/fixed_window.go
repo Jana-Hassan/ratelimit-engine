@@ -47,7 +47,7 @@ func (fw *FixedWindow) Allow(key string, rule Rule) Result {
 		return state
 	})
 
-	return Result{Allowed: allowed, Remaining: remaining, ResetIn: resetIn}
+	return Result{Allowed: allowed, Remaining: remaining, ResetIn: resetIn, RetryIn: retryAfter(allowed, resetIn)}
 }
 
 func (fw *FixedWindow) Peek(key string, rule Rule) Result {
@@ -58,6 +58,7 @@ func (fw *FixedWindow) Peek(key string, rule Rule) Result {
 	now := time.Now().Unix()
 	window := int64(rule.WindowSec)
 	start := now - now%window
+	resetIn := time.Duration(start+window-now) * time.Second
 
 	count := 0
 	fw.engine.View(key, func(value interface{}, found bool) {
@@ -69,13 +70,17 @@ func (fw *FixedWindow) Peek(key string, rule Rule) Result {
 		}
 	})
 
+	allowed := count < rule.Limit
 	remaining := 0
 	if left := rule.Limit - count; left > 0 {
 		remaining = left
 	}
-	return Result{
-		Allowed:   count < rule.Limit,
-		Remaining: remaining,
-		ResetIn:   time.Duration(start+window-now) * time.Second,
+	return Result{Allowed: allowed, Remaining: remaining, ResetIn: resetIn, RetryIn: retryAfter(allowed, resetIn)}
+}
+
+func retryAfter(allowed bool, wait time.Duration) time.Duration {
+	if allowed {
+		return 0
 	}
+	return wait
 }

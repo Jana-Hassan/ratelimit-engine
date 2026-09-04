@@ -36,6 +36,14 @@ func (state *slidingWindowLogState) resetIn(now int64, window int64) time.Durati
 	if state.size == 0 {
 		return 0
 	}
+	newest := state.stamps[(state.head+state.size-1)%len(state.stamps)]
+	return time.Duration(newest + window - now)
+}
+
+func (state *slidingWindowLogState) retryIn(now int64, window int64) time.Duration {
+	if state.size == 0 {
+		return 0
+	}
 	return time.Duration(state.stamps[state.head] + window - now)
 }
 
@@ -65,6 +73,8 @@ func (swl *SlidingWindowLog) Allow(key string, rule Rule) Result {
 			state.append(now)
 			result.Allowed = true
 			result.Remaining = rule.Limit - state.size
+		} else {
+			result.RetryIn = state.retryIn(now, window)
 		}
 		result.ResetIn = state.resetIn(now, window)
 		return state
@@ -84,6 +94,7 @@ func (swl *SlidingWindowLog) Peek(key string, rule Rule) Result {
 
 	inWindow := 0
 	oldest := int64(0)
+	newest := int64(0)
 	swl.engine.View(key, func(value interface{}, found bool) {
 		if !found {
 			return
@@ -99,20 +110,27 @@ func (swl *SlidingWindowLog) Peek(key string, rule Rule) Result {
 		inWindow = state.size - expired
 		if inWindow > 0 {
 			oldest = state.stamps[(state.head+expired)%len(state.stamps)]
+			newest = state.stamps[(state.head+state.size-1)%len(state.stamps)]
 		}
 	})
 
+	allowed := inWindow < rule.Limit
 	remaining := 0
 	if left := rule.Limit - inWindow; left > 0 {
 		remaining = left
 	}
 	resetIn := time.Duration(0)
 	if inWindow > 0 {
-		resetIn = time.Duration(oldest + window - now)
+		resetIn = time.Duration(newest + window - now)
+	}
+	retryIn := time.Duration(0)
+	if !allowed {
+		retryIn = time.Duration(oldest + window - now)
 	}
 	return Result{
-		Allowed:   inWindow < rule.Limit,
+		Allowed:   allowed,
 		Remaining: remaining,
 		ResetIn:   resetIn,
+		RetryIn:   retryIn,
 	}
 }

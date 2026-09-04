@@ -12,6 +12,7 @@ type Result struct {
 	Allowed   bool
 	Remaining int
 	ResetIn   time.Duration
+	RetryIn   time.Duration
 }
 
 type Algorithm interface {
