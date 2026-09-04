@@ -35,6 +35,11 @@ func (l *Limiter) Rules() *RuleStore {
 	return l.rules
 }
 
+func (l *Limiter) HasAlgorithm(name string) bool {
+	_, found := l.algorithms[name]
+	return found
+}
+
 func (l *Limiter) resolve(ruleName string) (Rule, algorithms.Algorithm, error) {
 	rule, found := l.rules.Get(ruleName)
 	if !found {
@@ -51,18 +56,18 @@ func cacheKey(ruleName string, clientID string) string {
 	return ruleName + ":" + clientID
 }
 
-func (l *Limiter) Check(ruleName string, clientID string) (algorithms.Result, error) {
+func (l *Limiter) Check(ruleName string, clientID string) (Rule, algorithms.Result, error) {
 	rule, algorithm, err := l.resolve(ruleName)
 	if err != nil {
-		return algorithms.Result{}, err
+		return Rule{}, algorithms.Result{}, err
 	}
-	return algorithm.Allow(cacheKey(ruleName, clientID), rule.Rule), nil
+	return rule, algorithm.Allow(cacheKey(ruleName, clientID), rule.Rule), nil
 }
 
-func (l *Limiter) Peek(ruleName string, clientID string) (algorithms.Result, error) {
+func (l *Limiter) Peek(ruleName string, clientID string) (Rule, algorithms.Result, error) {
 	rule, algorithm, err := l.resolve(ruleName)
 	if err != nil {
-		return algorithms.Result{}, err
+		return Rule{}, algorithms.Result{}, err
 	}
-	return algorithm.Peek(cacheKey(ruleName, clientID), rule.Rule), nil
+	return rule, algorithm.Peek(cacheKey(ruleName, clientID), rule.Rule), nil
 }
