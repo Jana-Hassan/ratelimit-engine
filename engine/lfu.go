@@ -188,6 +188,19 @@ func (engine *Engine) Get(key string) (interface{}, bool) {
 	return s.get(key)
 }
 
+func (engine *Engine) View(key string, fn func(value interface{}, found bool)) {
+	s := engine.getShard(key)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var current interface{}
+	node, found := s.keyMap[key]
+	if found {
+		current = node.value
+	}
+	fn(current, found)
+}
+
 func (engine *Engine) Update(key string, fn func(value interface{}, found bool) interface{}) {
 	s := engine.getShard(key)
 	s.mu.Lock()
