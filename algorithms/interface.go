@@ -16,4 +16,5 @@ type Result struct {
 
 type Algorithm interface {
 	Allow(key string, rule Rule) Result
+	Peek(key string, rule Rule) Result
 }
