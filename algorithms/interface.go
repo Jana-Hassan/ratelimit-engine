@@ -3,9 +3,9 @@ package algorithms
 import "time"
 
 type Rule struct {
-	Name      string
-	Limit     int
-	WindowSec int
+	Name      string `json:"name"`
+	Limit     int    `json:"limit"`
+	WindowSec int    `json:"window_sec"`
 }
 
 type Result struct {
