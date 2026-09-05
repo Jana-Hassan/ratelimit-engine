@@ -1,0 +1,13 @@
+.git
+.history
+.env
+*.exe
+/bin
+__debug_bin
+Dockerfile
+.dockerignore
+docker-compose.yml
+README.md
+CLAUDE.md
+assets
+dashboard
