@@ -143,7 +143,10 @@ func (s *Server) handleSetRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.limiter.Rules().Set(payload.toRule())
+	if err := s.limiter.Rules().Set(payload.toRule()); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to persist rule")
+		return
+	}
 	writeJSON(w, http.StatusOK, payload)
 }
 
@@ -153,7 +156,10 @@ func (s *Server) handleDeleteRule(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, limiter.ErrRuleNotFound.Error())
 		return
 	}
-	s.limiter.Rules().Delete(name)
+	if err := s.limiter.Rules().Delete(name); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to persist rule deletion")
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

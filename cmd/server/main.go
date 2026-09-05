@@ -18,11 +18,19 @@ func main() {
 	addr := flag.String("addr", ":8080", "http listen address")
 	shardCapacity := flag.Int("shard-capacity", 1024, "entries kept per cache shard")
 	trustProxy := flag.Bool("trust-proxy", false, "trust the Fly-Client-IP header for probe rate limiting")
+	rulesFile := flag.String("rules-file", "rules.json", "path to the rule config file")
 	flag.Parse()
+
+	l := limiter.New(engine.NewEngine(*shardCapacity), limiter.NewFileRepository(*rulesFile))
+	loaded, err := l.Rules().Load()
+	if err != nil {
+		log.Fatalf("load rules from %s: %v", *rulesFile, err)
+	}
+	log.Printf("loaded %d rules from %s", loaded, *rulesFile)
 
 	server := &http.Server{
 		Addr:         *addr,
-		Handler:      api.NewServer(limiter.New(engine.NewEngine(*shardCapacity)), *trustProxy),
+		Handler:      api.NewServer(l, *trustProxy),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,

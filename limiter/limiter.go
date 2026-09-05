@@ -18,10 +18,10 @@ type Limiter struct {
 	algorithms map[string]algorithms.Algorithm
 }
 
-func New(e *engine.Engine) *Limiter {
+func New(e *engine.Engine, repo RuleRepository) *Limiter {
 	return &Limiter{
 		engine: e,
-		rules:  NewRuleStore(),
+		rules:  NewRuleStore(repo),
 		algorithms: map[string]algorithms.Algorithm{
 			"fixed_window":       algorithms.NewFixedWindow(e),
 			"sliding_window":     algorithms.NewSlidingWindow(e),
