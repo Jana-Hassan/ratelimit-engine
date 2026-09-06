@@ -185,7 +185,7 @@ func TestLimiterRulesAreIsolated(t *testing.T) {
 	}
 }
 
-func TestLimiterCacheKeysCollideAcrossColon(t *testing.T) {
+func TestLimiterCacheKeysDoNotCollideAcrossColon(t *testing.T) {
 	l := testLimiter(t, nil, rule("a", "fixed_window", 1), rule("a:b", "fixed_window", 1))
 
 	if _, result, _ := l.Check("a", "b:c"); !result.Allowed {
@@ -195,10 +195,29 @@ func TestLimiterCacheKeysCollideAcrossColon(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Check failed: %v", err)
 	}
-	if result.Allowed {
-		t.Skip("cache keys no longer collide; this test pinned a known ambiguity and can be deleted")
+	if !result.Allowed {
+		t.Fatal("rule a + client b:c and rule a:b + client c share a counter")
 	}
-	t.Log("known ambiguity: cacheKey joins rule and client with a colon, so rule a + client b:c shares a counter with rule a:b + client c")
+}
+
+func TestCacheKeyIsUnambiguous(t *testing.T) {
+	pairs := [][2]string{
+		{"a", "b:c"},
+		{"a:b", "c"},
+		{"", "a:b:c"},
+		{"a:b:c", ""},
+		{"1", "0:x"},
+		{"10", ":x"},
+	}
+
+	seen := map[string][2]string{}
+	for _, pair := range pairs {
+		key := cacheKey(pair[0], pair[1])
+		if previous, found := seen[key]; found {
+			t.Fatalf("cacheKey%v and cacheKey%v both produced %q", previous, pair, key)
+		}
+		seen[key] = pair
+	}
 }
 
 func TestLimiterRecordsDecisions(t *testing.T) {

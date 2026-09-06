@@ -2,6 +2,7 @@ package limiter
 
 import (
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/Jana-Hassan/ratelimit-engine/algorithms"
@@ -67,7 +68,7 @@ func (l *Limiter) resolve(ruleName string) (Rule, algorithms.Algorithm, error) {
 }
 
 func cacheKey(ruleName string, clientID string) string {
-	return ruleName + ":" + clientID
+	return strconv.Itoa(len(ruleName)) + ":" + ruleName + ":" + clientID
 }
 
 // calculates algo latency
