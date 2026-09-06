@@ -1,6 +1,7 @@
 package algorithms
 
 import (
+	"sort"
 	"time"
 
 	"github.com/Jana-Hassan/ratelimit-engine/engine"
@@ -18,6 +19,12 @@ type SlidingWindowLog struct {
 
 func NewSlidingWindowLog(e *engine.Engine) *SlidingWindowLog {
 	return &SlidingWindowLog{engine: e}
+}
+
+func (state *slidingWindowLogState) expiredCount(cutoff int64) int {
+	return sort.Search(state.size, func(i int) bool {
+		return state.stamps[(state.head+i)%len(state.stamps)] > cutoff
+	})
 }
 
 func (state *slidingWindowLogState) prune(cutoff int64) {
@@ -103,10 +110,7 @@ func (swl *SlidingWindowLog) Peek(key string, rule Rule) Result {
 		if !ok || len(state.stamps) != rule.Limit {
 			return
 		}
-		expired := 0
-		for expired < state.size && state.stamps[(state.head+expired)%len(state.stamps)] <= cutoff {
-			expired++
-		}
+		expired := state.expiredCount(cutoff)
 		inWindow = state.size - expired
 		if inWindow > 0 {
 			oldest = state.stamps[(state.head+expired)%len(state.stamps)]
