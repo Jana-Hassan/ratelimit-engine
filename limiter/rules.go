@@ -99,3 +99,13 @@ func (rs *RuleStore) listLocked() []Rule {
 	}
 	return list
 }
+
+func (rs *RuleStore) CountByAlgorithm() map[string]int {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+	counts := make(map[string]int)
+	for _, rule := range rs.rules {
+		counts[rule.Algorithm]++
+	}
+	return counts
+}

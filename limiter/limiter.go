@@ -2,6 +2,7 @@ package limiter
 
 import (
 	"errors"
+	"time"
 
 	"github.com/Jana-Hassan/ratelimit-engine/algorithms"
 	"github.com/Jana-Hassan/ratelimit-engine/engine"
@@ -12,16 +13,29 @@ var (
 	ErrAlgorithmNotFound = errors.New("algorithm not found")
 )
 
+type Recorder interface {
+	RecordDecision(algorithm string, rule string, mode string, allowed bool, elapsed time.Duration)
+}
+
+type nopRecorder struct{}
+
+func (nopRecorder) RecordDecision(string, string, string, bool, time.Duration) {}
+
 type Limiter struct {
 	engine     *engine.Engine
 	rules      *RuleStore
+	recorder   Recorder
 	algorithms map[string]algorithms.Algorithm
 }
 
-func New(e *engine.Engine, repo RuleRepository) *Limiter {
+func New(e *engine.Engine, repo RuleRepository, recorder Recorder) *Limiter {
+	if recorder == nil {
+		recorder = nopRecorder{}
+	}
 	return &Limiter{
-		engine: e,
-		rules:  NewRuleStore(repo),
+		engine:   e,
+		rules:    NewRuleStore(repo),
+		recorder: recorder,
 		algorithms: map[string]algorithms.Algorithm{
 			"fixed_window":       algorithms.NewFixedWindow(e),
 			"sliding_window":     algorithms.NewSlidingWindow(e),
@@ -56,12 +70,20 @@ func cacheKey(ruleName string, clientID string) string {
 	return ruleName + ":" + clientID
 }
 
+// calculates algo latency
+func (l *Limiter) observe(key string, rule Rule, mode string, decide func(key string, rule algorithms.Rule) algorithms.Result) algorithms.Result {
+	start := time.Now()
+	result := decide(key, rule.Rule)
+	l.recorder.RecordDecision(rule.Algorithm, rule.Name, mode, result.Allowed, time.Since(start))
+	return result
+}
+
 func (l *Limiter) Check(ruleName string, clientID string) (Rule, algorithms.Result, error) {
 	rule, algorithm, err := l.resolve(ruleName)
 	if err != nil {
 		return Rule{}, algorithms.Result{}, err
 	}
-	return rule, algorithm.Allow(cacheKey(ruleName, clientID), rule.Rule), nil
+	return rule, l.observe(cacheKey(ruleName, clientID), rule, "check", algorithm.Allow), nil
 }
 
 func (l *Limiter) Peek(ruleName string, clientID string) (Rule, algorithms.Result, error) {
@@ -69,5 +91,5 @@ func (l *Limiter) Peek(ruleName string, clientID string) (Rule, algorithms.Resul
 	if err != nil {
 		return Rule{}, algorithms.Result{}, err
 	}
-	return rule, algorithm.Peek(cacheKey(ruleName, clientID), rule.Rule), nil
+	return rule, l.observe(cacheKey(ruleName, clientID), rule, "peek", algorithm.Peek), nil
 }

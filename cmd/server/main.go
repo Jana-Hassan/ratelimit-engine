@@ -12,6 +12,7 @@ import (
 	"github.com/Jana-Hassan/ratelimit-engine/api"
 	"github.com/Jana-Hassan/ratelimit-engine/engine"
 	"github.com/Jana-Hassan/ratelimit-engine/limiter"
+	"github.com/Jana-Hassan/ratelimit-engine/metrics"
 )
 
 func main() {
@@ -21,7 +22,12 @@ func main() {
 	rulesFile := flag.String("rules-file", "rules.json", "path to the rule config file")
 	flag.Parse()
 
-	l := limiter.New(engine.NewEngine(*shardCapacity), limiter.NewFileRepository(*rulesFile))
+	cache := engine.NewEngine(*shardCapacity)
+	observability := metrics.New()
+	observability.WatchEngine(cache)
+
+	l := limiter.New(cache, limiter.NewFileRepository(*rulesFile), observability)
+	observability.WatchRules(l.Rules().CountByAlgorithm)
 	loaded, err := l.Rules().Load()
 	if err != nil {
 		log.Fatalf("load rules from %s: %v", *rulesFile, err)
@@ -30,7 +36,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:         *addr,
-		Handler:      api.NewServer(l, *trustProxy),
+		Handler:      api.NewServer(l, cache, observability, *trustProxy),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,

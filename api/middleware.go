@@ -12,10 +12,16 @@ import (
 	"github.com/Jana-Hassan/ratelimit-engine/limiter"
 )
 
+type recordingWriter struct {
+	http.ResponseWriter
+	status int
+}
+
 func (s *Server) limitProbe(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		result := s.probe.Allow(s.clientIP(r), s.probeRule)
 		if !result.Allowed {
+			s.metrics.RecordProbeThrottled()
 			w.Header().Set("Retry-After", strconv.Itoa(wholeSeconds(result.RetryIn)))
 			w.WriteHeader(http.StatusTooManyRequests)
 			return
@@ -64,4 +70,27 @@ func statusFor(result algorithms.Result) int {
 		return http.StatusOK
 	}
 	return http.StatusTooManyRequests
+}
+
+
+func (w *recordingWriter) WriteHeader(status int) {
+	w.status = status
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (s *Server) route(r *http.Request) string {
+	if _, pattern := s.mux.Handler(r); pattern != "" {
+		return pattern
+	}
+	return "unmatched"
+}
+
+func (s *Server) instrument(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		route := s.route(r)
+		recorder := &recordingWriter{ResponseWriter: w, status: http.StatusOK}
+		start := time.Now()
+		next.ServeHTTP(recorder, r)
+		s.metrics.RecordHTTP(route, r.Method, strconv.Itoa(recorder.status), time.Since(start))
+	})
 }
