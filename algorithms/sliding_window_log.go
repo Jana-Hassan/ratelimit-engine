@@ -15,10 +15,11 @@ type slidingWindowLogState struct {
 
 type SlidingWindowLog struct {
 	engine *engine.Engine
+	clock  Clock
 }
 
 func NewSlidingWindowLog(e *engine.Engine) *SlidingWindowLog {
-	return &SlidingWindowLog{engine: e}
+	return &SlidingWindowLog{engine: e, clock: systemClock{}}
 }
 
 func (state *slidingWindowLogState) expiredCount(cutoff int64) int {
@@ -68,7 +69,7 @@ func (swl *SlidingWindowLog) Allow(key string, rule Rule) Result {
 		return Result{Allowed: false}
 	}
 
-	now := time.Now().UnixNano()
+	now := swl.clock.Now().UnixNano()
 	window := int64(rule.WindowSec) * int64(time.Second)
 
 	result := Result{}
@@ -95,7 +96,7 @@ func (swl *SlidingWindowLog) Peek(key string, rule Rule) Result {
 		return Result{Allowed: false}
 	}
 
-	now := time.Now().UnixNano()
+	now := swl.clock.Now().UnixNano()
 	window := int64(rule.WindowSec) * int64(time.Second)
 	cutoff := now - window
 

@@ -13,10 +13,11 @@ type tokenBucketState struct {
 
 type TokenBucket struct {
 	engine *engine.Engine
+	clock  Clock
 }
 
 func NewTokenBucket(e *engine.Engine) *TokenBucket {
-	return &TokenBucket{engine: e}
+	return &TokenBucket{engine: e, clock: systemClock{}}
 }
 
 func (state tokenBucketState) refill(now int64, capacity float64, rate float64) tokenBucketState {
@@ -54,7 +55,7 @@ func (tb *TokenBucket) Allow(key string, rule Rule) Result {
 		return Result{Allowed: false}
 	}
 
-	now := time.Now().UnixNano()
+	now := tb.clock.Now().UnixNano()
 	capacity := float64(rule.Limit)
 	rate := capacity / float64(rule.WindowSec)
 
@@ -81,7 +82,7 @@ func (tb *TokenBucket) Peek(key string, rule Rule) Result {
 		return Result{Allowed: false}
 	}
 
-	now := time.Now().UnixNano()
+	now := tb.clock.Now().UnixNano()
 	capacity := float64(rule.Limit)
 	rate := capacity / float64(rule.WindowSec)
 

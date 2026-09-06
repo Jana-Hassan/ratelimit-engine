@@ -14,10 +14,11 @@ type slidingWindowState struct {
 
 type SlidingWindow struct {
 	engine *engine.Engine
+	clock  Clock
 }
 
 func NewSlidingWindow(e *engine.Engine) *SlidingWindow {
-	return &SlidingWindow{engine: e}
+	return &SlidingWindow{engine: e, clock: systemClock{}}
 }
 
 func slidingRetryIn(state slidingWindowState, rule Rule, now int64, window int64) time.Duration {
@@ -38,7 +39,7 @@ func (sw *SlidingWindow) Allow(key string, rule Rule) Result {
 		return Result{Allowed: false}
 	}
 
-	now := time.Now().Unix()
+	now := sw.clock.Now().Unix()
 	window := int64(rule.WindowSec)
 	start := now - now%window
 	resetIn := time.Duration(start+window-now) * time.Second
@@ -86,7 +87,7 @@ func (sw *SlidingWindow) Peek(key string, rule Rule) Result {
 		return Result{Allowed: false}
 	}
 
-	now := time.Now().Unix()
+	now := sw.clock.Now().Unix()
 	window := int64(rule.WindowSec)
 	start := now - now%window
 	resetIn := time.Duration(start+window-now) * time.Second

@@ -13,10 +13,11 @@ type fixedWindowState struct {
 
 type FixedWindow struct {
 	engine *engine.Engine
+	clock  Clock
 }
 
 func NewFixedWindow(e *engine.Engine) *FixedWindow {
-	return &FixedWindow{engine: e}
+	return &FixedWindow{engine: e, clock: systemClock{}}
 }
 
 func (fw *FixedWindow) Allow(key string, rule Rule) Result {
@@ -24,7 +25,7 @@ func (fw *FixedWindow) Allow(key string, rule Rule) Result {
 		return Result{Allowed: false}
 	}
 
-	now := time.Now().Unix()
+	now := fw.clock.Now().Unix()
 	window := int64(rule.WindowSec)
 	start := now - now%window
 	resetIn := time.Duration(start+window-now) * time.Second
@@ -55,7 +56,7 @@ func (fw *FixedWindow) Peek(key string, rule Rule) Result {
 		return Result{Allowed: false}
 	}
 
-	now := time.Now().Unix()
+	now := fw.clock.Now().Unix()
 	window := int64(rule.WindowSec)
 	start := now - now%window
 	resetIn := time.Duration(start+window-now) * time.Second
