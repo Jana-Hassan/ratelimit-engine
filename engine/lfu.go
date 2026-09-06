@@ -3,6 +3,7 @@ package engine
 import (
 	"hash/fnv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -18,22 +19,23 @@ type Node struct {
 type frequencyList struct {
 	head *Node
 	tail *Node
-	size int   // #nodes in the list
+	size int // #nodes in the list
 }
 
-type shard struct{
-	freqMap map[int]*frequencyList
-	size   int
-	capacity int
-	minFreq int
-	keyMap map[string]*Node
-	mu sync.RWMutex
-	
+type shard struct {
+	freqMap   map[int]*frequencyList
+	size      int
+	capacity  int
+	minFreq   int
+	keyMap    map[string]*Node
+	mu        sync.RWMutex
+	evictions uint64
+	hits      atomic.Uint64
+	misses    atomic.Uint64
 }
 
 type Engine struct {
 	shards [256]shard
-
 }
 
 func newFrequencyList() *frequencyList {
@@ -57,8 +59,8 @@ func NewEngine(shardCapacity int) *Engine {
 	engine := &Engine{}
 	for i := 0; i < 256; i++ {
 		engine.shards[i] = shard{
-			freqMap: make(map[int] *frequencyList),
-			keyMap:  make(map[string] *Node),
+			freqMap:  make(map[int]*frequencyList),
+			keyMap:   make(map[string]*Node),
 			capacity: shardCapacity,
 		}
 	}
@@ -79,10 +81,9 @@ func (freqlist *frequencyList) removeNode(node *Node) {
 }
 
 func (shard *shard) incrementFreq(node *Node) {
-	currentFreq := node.freq  // remove the node from its current frequency list
+	currentFreq := node.freq // remove the node from its current frequency list
 
-	if freqList, exists := shard.freqMap[currentFreq]; 
-	exists {
+	if freqList, exists := shard.freqMap[currentFreq]; exists {
 		freqList.removeNode(node)
 		if freqList.size == 0 {
 			delete(shard.freqMap, currentFreq)
@@ -92,11 +93,10 @@ func (shard *shard) incrementFreq(node *Node) {
 		}
 	}
 	node.freq++
-	if _, exists := shard.freqMap[node.freq]; 
-	!exists {
+	if _, exists := shard.freqMap[node.freq]; !exists {
 		shard.freqMap[node.freq] = newFrequencyList()
 	}
-	shard.freqMap[node.freq].addToFront(node) 
+	shard.freqMap[node.freq].addToFront(node)
 }
 
 func (engine *Engine) getShard(key string) *shard {
@@ -118,6 +118,7 @@ func (s *shard) evict() {
 	}
 	delete(s.keyMap, lru.key)
 	s.size--
+	s.evictions++
 }
 
 func (s *shard) set(key string, value interface{}) {
@@ -127,7 +128,7 @@ func (s *shard) set(key string, value interface{}) {
 		node.lastAccessed = time.Now()
 		return
 	}
-	if s.size >= s.capacity {  // new key
+	if s.size >= s.capacity { // new key
 		s.evict()
 	}
 
@@ -185,7 +186,9 @@ func (engine *Engine) Get(key string) (interface{}, bool) {
 	s := engine.getShard(key)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.get(key)
+	value, found := s.get(key)
+	s.record(found)
+	return value, found
 }
 
 func (engine *Engine) View(key string, fn func(value interface{}, found bool)) {
@@ -198,7 +201,7 @@ func (engine *Engine) View(key string, fn func(value interface{}, found bool)) {
 	if found {
 		current = node.value
 	}
-	fn(current, found)
+	fn(current, s.record(found))
 }
 
 func (engine *Engine) Update(key string, fn func(value interface{}, found bool) interface{}) {
@@ -211,5 +214,5 @@ func (engine *Engine) Update(key string, fn func(value interface{}, found bool) 
 	if found {
 		current = node.value
 	}
-	s.set(key, fn(current, found))
+	s.set(key, fn(current, s.record(found)))
 }
