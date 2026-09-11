@@ -186,7 +186,7 @@ go test -race ./...        # race detector
 go test -bench . ./...     # benchmarks
 ```
 
-Coverage by package: `algorithms` 98.6%, `engine` 98.3%, `limiter` 89.1%. The `api` and `metrics` packages have no tests.
+Coverage by package: `api` 98.5%, `algorithms` 98.6%, `engine` 98.3%, `limiter` 89.1%, `metrics` 98.4%.
 
 A shared contract suite runs all four algorithms through the same assertions, so a new algorithm inherits the same guarantees:
 
@@ -248,7 +248,7 @@ This exposes the API on `:8080`, Prometheus on `:9090`, and Grafana on `:3000`.
 
 ## Phase 2 and Future Work
 
-Current scope and known gaps:
+**Current scope and known gaps:**
 
 - Rate-limit state is local to one process.
 - Rules use one local JSON file not a shared configuration store.
@@ -257,7 +257,7 @@ Current scope and known gaps:
 - There are no distributed-failure tests.
 - Multiple replicas do not share counters or quotas.
 
-Phase 2 priorities:
+**Phase 2 priorities:**
 
 1. Authentication and authorization for rule management
 2. Input, rule-count, and memory bounds
